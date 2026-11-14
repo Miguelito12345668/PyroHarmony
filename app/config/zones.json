@@ -1,0 +1,18 @@
+{
+  "cameroun": {
+    "display_name": "Cameroun",
+    "bbox": [8.5, 1.6, 16.2, 13.1],
+    "archive_country_name": "Cameroon",
+    "products_archive": ["MODIS", "VIIRS_SNPP"],
+    "products_realtime": ["MODIS_NRT", "VIIRS_SNPP_NRT"],
+    "enabled": true
+  },
+  "afrique_centrale": {
+    "display_name": "Afrique Centrale",
+    "bbox": [8.0, -6.0, 19.0, 13.5],
+    "archive_country_name": null,
+    "products_archive": ["MODIS", "VIIRS_SNPP"],
+    "products_realtime": ["MODIS_NRT", "VIIRS_SNPP_NRT"],
+    "enabled": false
+  }
+}
