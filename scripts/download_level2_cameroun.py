@@ -3,25 +3,19 @@ from pathlib import Path
 import sys
 
 # ==========================================
-# 1. CONFIGURATION
+# 1. CONFIGURATION SPÉCIFIQUE CAMEROUN
 # ==========================================
-# Bounding Box pour l'Afrique Centrale
-# Ouest, Sud, Est, Nord
-CENTRAL_AFRICA_BBOX = (8.0, -18.0, 32.0, 24.0)
+# BBOX du Cameroun (Ouest, Sud, Est, Nord)
+CAMEROON_BBOX = (8.5, 1.6, 16.2, 13.1)
 
-# Résolution robuste du chemin vers le dossier cache/level2
-# (remonte de scripts/ vers la racine du projet)
+# Dossier de destination
 BASE_DIR = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = BASE_DIR / "cache" / "level2"
+OUTPUT_DIR = BASE_DIR / "cache" / "level2_cameroun"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Plage d'années
-START_YEAR = 2000
-END_YEAR = 2025
-
-# ⚠️ LIMITE DE SÉCURITÉ
-# Mets 10 pour tester. Passe à 50 ou None (tout) quand tu es prêt.
-MAX_GRANULES_PER_YEAR = 10 
+# Période : 2025 jusqu'au 2 novembre 2026 (fin de Suomi-NPP)
+START_DATE = "2025-01-01"
+END_DATE = "2026-11-02"
 
 # Produits NASA
 products = {
@@ -41,39 +35,51 @@ except Exception as e:
     sys.exit(1)
 
 # ==========================================
-# 3. TÉLÉCHARGEMENT
+# 3. TÉLÉCHARGEMENT SANS LIMITE
 # ==========================================
-print(f"\nDébut du téléchargement pour l'Afrique Centrale (BBOX: {CENTRAL_AFRICA_BBOX})")
+print(f"\nDébut du téléchargement pour le CAMEROUN...")
+print(f"Période : Du {START_DATE} au {END_DATE}")
 print(f"Destination : {OUTPUT_DIR}")
 
-for year in range(START_YEAR, END_YEAR + 1):
+for year in [2025, 2026]:
     print(f"\n{'='*50}")
     print(f"TRAITEMENT DE L'ANNÉE {year}")
     print(f"{'='*50}")
 
-    temporal_range = (f"{year}-01-01", f"{year}-12-31")
+    start_of_year = f"{year}-01-01"
+    end_of_year = f"{year}-12-31"
+    
+    # Ajustement pour ne pas dépasser les bornes
+    if start_of_year < START_DATE:
+        start_of_year = START_DATE
+    if end_of_year > END_DATE:
+        end_of_year = END_DATE
+        
+    temporal_range = (start_of_year, end_of_year)
+    print(f"Recherche pour la période : {temporal_range[0]} à {temporal_range[1]}")
 
     for short_name, description in products.items():
         print(f"\n--- Recherche pour {short_name} ---")
 
         try:
+            # count=-1 signifie "TOUT TÉLÉCHARGER"
             results = earthaccess.search_data(
                 short_name=short_name,
-                bounding_box=CENTRAL_AFRICA_BBOX,
+                bounding_box=CAMEROON_BBOX,
                 temporal=temporal_range,
-                count=MAX_GRANULES_PER_YEAR if MAX_GRANULES_PER_YEAR else -1
+                count=-1 
             )
         except Exception as e:
-            print(f"Erreur API pour {short_name} en {year} : {e}")
+            print(f"Erreur API pour {short_name} : {e}")
             continue
 
         if not results:
-            print(f"Aucun granule trouvé pour {short_name} en {year}.")
+            print(f"Aucun granule trouvé pour {short_name} sur cette période.")
             continue
 
-        print(f"{len(results)} granules trouvés. Téléchargement...")
+        print(f"{len(results)} granules trouvés. Téléchargement en cours...")
 
-        # Dossier de destination : cache/level2/MOD14/2023/
+        # Dossier : cache/level2_cameroun/MOD14/2025/
         product_dir = OUTPUT_DIR / short_name / str(year)
         product_dir.mkdir(parents=True, exist_ok=True)
 
@@ -83,4 +89,4 @@ for year in range(START_YEAR, END_YEAR + 1):
         except Exception as e:
             print(f"❌ Erreur lors du téléchargement : {e}")
 
-print("\n🎉 Script de téléchargement terminé.")
+print("\n🎉 Script de téléchargement Cameroun terminé.")

@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 cache/
 cache_backup/
+cache_backup_2/
 .venv/
 venv/
 *.log

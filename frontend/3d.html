@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PyroHarmony 3D — Douala</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
+  <style>
+    :root {
+      --bg-overlay: rgba(23, 29, 36, 0.95);
+      --surface-2: rgba(251, 146, 60, 0.1);
+      --border: #2a3541;
+      --text: #e6ebf0;
+      --text-muted: #94a3b3;
+      --accent: #fb923c;
+      --accent-ink: #1a0f05;
+      --danger: #dc2626;
+      --success: #4ade80;
+    }
+    [data-theme="light"] {
+      --bg-overlay: rgba(255, 255, 255, 0.95);
+      --surface-2: rgba(251, 146, 60, 0.15);
+      --border: #dfe3e8;
+      --text: #1b2128;
+      --text-muted: #5b6672;
+      --accent: #c2410c;
+      --accent-ink: #ffffff;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; background: var(--bg-overlay); }
+    #map { position: absolute; inset: 0; }
+    
+    .icon { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; flex-shrink: 0; }
+    
+    header {
+      position: absolute; top: 16px; left: 16px; right: 16px; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+      background: var(--bg-overlay); backdrop-filter: blur(8px);
+      padding: 12px 20px; border-radius: 12px; border: 1px solid var(--border);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    header h1 { font-size: 18px; color: var(--text); display: flex; align-items: center; gap: 10px; }
+    .badge { background: var(--accent); color: var(--accent-ink); padding: 4px 10px; border-radius: 20px;
+             font-size: 11px; font-weight: 700; text-transform: uppercase; margin-left: 10px; }
+    .badge.live { background: var(--success); color: #0a1a0a; animation: pulseLive 1.6s infinite; }
+    .badge.error { background: var(--danger); color: white; }
+    .badge.simulation { background: #6366f1; color: white; }
+    @keyframes pulseLive {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .controls button {
+      background: var(--bg-overlay); color: var(--text); border: 1px solid var(--border);
+      padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+    }
+    .controls button:hover { border-color: var(--accent); }
+    .controls button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+    
+    #legend, #info {
+      position: absolute; bottom: 20px; z-index: 10;
+      background: var(--bg-overlay); backdrop-filter: blur(8px);
+      padding: 14px 18px; border-radius: 10px; border: 1px solid var(--border);
+      color: var(--text); font-size: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    #legend { left: 20px; min-width: 240px; }
+    #info { right: 20px; max-width: 340px; }
+    #legend h3, #info h3 { margin-bottom: 10px; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    #info h3 { color: var(--accent); }
+    
+    .legend-section { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .legend-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .legend-section-title { font-size: 10px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); flex-shrink: 0; }
+    
+    .maplibregl-popup-content {
+      background: var(--bg-overlay) !important; color: var(--text) !important;
+      border-radius: 8px !important; padding: 14px !important;
+      border: 1px solid var(--border) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+      min-width: 280px;
+    }
+    .popup-title { font-weight: 700; color: var(--accent); margin-bottom: 8px; font-size: 14px; }
+    .popup-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
+    .popup-row span:first-child { color: var(--text-muted); }
+    .popup-row span:last-child { color: var(--text); font-weight: 600; }
+    .popup-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; color: white; font-size: 11px; font-weight: 700; }
+    
+    .popup-divider { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+    .popup-subtitle { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; font-weight: 600; }
+    
+    .transport-option {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      padding: 10px 12px; margin-bottom: 6px;
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      cursor: pointer; font-size: 13px; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .transport-option:hover { border-color: var(--accent); background: var(--surface-2); }
+    .transport-option .label { flex: 1; text-align: left; }
+    .transport-option .time { font-weight: 700; color: var(--accent); font-size: 14px; }
+    .transport-option .loading { color: var(--text-muted); font-style: italic; font-size: 12px; }
+    .transport-option.active { background: var(--surface-2); border-color: var(--accent); }
+    .transport-option:disabled { opacity: 0.6; cursor: wait; }
+    
+    #toast {
+      position: absolute; top: 90px; left: 50%; transform: translateX(-50%);
+      background: var(--bg-overlay); color: var(--text); padding: 10px 20px; border-radius: 8px;
+      border: 1px solid var(--border); font-size: 13px; z-index: 20;
+      opacity: 0; transition: opacity 0.3s; pointer-events: none;
+      max-width: 80%; text-align: center; display: flex; align-items: center; gap: 8px;
+    }
+    #toast.show { opacity: 1; }
+    
+    #instructions {
+      position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+      background: var(--bg-overlay); backdrop-filter: blur(8px);
+      padding: 16px 24px; border-radius: 12px; border: 2px solid var(--accent);
+      color: var(--text); z-index: 15; display: none; text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-width: 300px;
+    }
+    #instructions.active { display: block; }
+    #instructions .icon { font-size: 32px; margin-bottom: 8px; width: 32px; height: 32px; color: var(--accent); }
+    #instructions .text { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    #instructions .distance { font-size: 12px; color: var(--text-muted); }
+    
+    #fallback-banner {
+      position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+      background: var(--danger); color: white; padding: 14px 24px; border-radius: 10px;
+      z-index: 15; display: none; text-align: center; font-size: 13px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5); max-width: 500px;
+    }
+    #fallback-banner.active { display: block; }
+    #fallback-banner button {
+      margin-top: 8px; background: white; color: var(--danger);
+      border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 600;
+    }
+    
+    /* Écran de chargement */
+    #loading-screen {
+      position: absolute; inset: 0; z-index: 100;
+      background: var(--bg-overlay); backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; color: var(--text); padding: 20px;
+    }
+    #loading-screen.hidden { display: none; }
+    .spinner {
+      width: 50px; height: 50px;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-screen .msg { font-size: 15px; color: var(--text-muted); text-align: center; }
+    #loading-screen .error { color: var(--danger); font-size: 14px; max-width: 500px; text-align: center; }
+    .btn-group { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+    .retry-btn {
+      background: var(--accent); color: var(--accent-ink);
+      border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 6px; font-size: 14px;
+      transition: all 0.2s;
+    }
+    .retry-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .retry-btn.simulation {
+      background: linear-gradient(135deg, #a855f7, #6366f1);
+      color: white;
+    }
+    
+    .nav-active #legend, .nav-active #info { opacity: 0.3; pointer-events: none; }
+  </style>
+</head>
+<body>
+
+<!-- Écran de chargement -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="msg">Chargement des points chauds de Douala…</div>
+</div>
+
+<header>
+  <h1>
+    <svg class="icon" style="color:var(--danger)"><use href="#i-flame"/></svg>
+    PyroHarmony 3D — Douala
+    <span class="badge" id="badge-status">Chargement…</span>
+  </h1>
+  <div class="controls">
+    <button onclick="location.href='/ui/'"><svg class="icon"><use href="#i-arrow-left"/></svg> Dashboard</button>
+    <button class="primary" id="locate-btn"><svg class="icon"><use href="#i-crosshair"/></svg> Point le plus proche</button>
+    <button id="test-voice-btn" title="Tester le son"><svg class="icon"><use href="#i-navigation"/></svg> Test Voix</button>
+    <button id="theme-btn"><svg class="icon"><use href="#i-moon"/></svg></button>
+    <button id="reset-btn"><svg class="icon"><use href="#i-rotate"/></svg></button>
+  </div>
+</header>
+
+<div id="map"></div>
+
+<div id="instructions">
+  <svg class="icon"><use href="#i-arrow-up"/></svg>
+  <div class="text">...</div>
+  <div class="distance">...</div>
+</div>
+
+<div id="fallback-banner">
+  <strong>Géolocalisation indisponible</strong>
+  <p style="margin-top:6px;">Cliquez sur la carte pour définir votre position manuellement.</p>
+  <button onclick="document.getElementById('fallback-banner').classList.remove('active')">Compris</button>
+</div>
+
+<div id="legend">
+  <h3>Légende</h3>
+  <div class="legend-section">
+    <div class="legend-section-title">Type de feu (couleur)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Végétation</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Industriel</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div> Volcanique</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div> Offshore</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#94a3b8"></div> Non identifié</div>
+  </div>
+</div>
+
+<div id="info">
+  <h3>Vue 3D — Douala</h3>
+  <p id="info-text">Chargement des points chauds en temps réel…</p>
+</div>
+
+<div id="toast"></div>
+
+<!-- SVG Icons Bank -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-navigation" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></symbol>
+  <symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM5 17l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3zM19 11l0.7 2.1L22 14l-2.3 0.9L19 17l-0.7-2.1L16 14l2.3-0.9L19 11z"/></symbol>
+</svg>
+
+<script>
+  // ============================================
+  // CONFIGURATION
+  // ============================================
+  const API = 'http://localhost:8000';
+  const DOUALA_CENTER = [9.70, 4.05];
+  const DOUALA_BBOX = { west: 9.4, south: 3.8, east: 10.2, north: 4.5 };
+  const STYLES = {
+    dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    light: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
+  };
+
+  const TRANSPORT_MODES = {
+    driving: { speed: 45, label: 'Voiture', icon: 'car' },
+    cycling: { speed: 15, label: 'Vélo', icon: 'bike' },
+    walking: { speed: 5, label: 'À pied', icon: 'walk' }
+  };
+
+  const FIRE_TYPES = {
+    0: { name: 'Végétation', color: '#ef4444' },
+    1: { name: 'Volcanique', color: '#a855f7' },
+    2: { name: 'Industriel', color: '#3b82f6' },
+    3: { name: 'Offshore', color: '#06b6d4' },
+    'unknown': { name: 'Non identifié', color: '#94a3b8' }
+  };
+  function getFireType(type) {
+    if (type === null || type === undefined) return FIRE_TYPES['unknown'];
+    return FIRE_TYPES[type] || FIRE_TYPES['unknown'];
+  }
+
+  // ============================================
+  // ÉTAT GLOBAL
+  // ============================================
+  let hotspots = [];
+  let userPosition = null;
+  let routeCache = {};
+  let sequenceTimeout = null;
+  let map = null;
+  let isSimulation = false;
+  let pulseIntervalId = null;
+
+  // ============================================
+  // THÈME
+  // ============================================
+  function getTheme() { return localStorage.getItem('theme3d') || 'dark'; }
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    localStorage.setItem('theme3d', t);
+    const btn = document.getElementById('theme-btn');
+    btn.innerHTML = `<svg class="icon"><use href="#i-${t === 'dark' ? 'sun' : 'moon'}"/></svg>`;
+    if (map) map.setStyle(STYLES[t]);
+  }
+
+  // ============================================
+  // GÉNÉRATION DE POINTS SIMULÉS
+  // ============================================
+  function generateSimulatedHotspots(count = 50) {
+    const sim = [];
+    // Distribution réaliste des types : 70% végétation, 16% industriel, 10% unknown, 2% volcan, 2% offshore
+    const typeDistribution = [
+      ...Array(Math.round(count * 0.70)).fill(0),
+      ...Array(Math.round(count * 0.16)).fill(2),
+      ...Array(Math.round(count * 0.10)).fill(null),
+      ...Array(Math.round(count * 0.02)).fill(1),
+      ...Array(Math.round(count * 0.02)).fill(3)
+    ];
+    
+    for (let i = 0; i < count; i++) {
+      // Distribution gaussienne centrée sur Douala
+      const lat = DOUALA_CENTER[1] + (Math.random() + Math.random() + Math.random() - 1.5) * 0.12;
+      const lon = DOUALA_CENTER[0] + (Math.random() + Math.random() + Math.random() - 1.5) * 0.12;
+      
+      // Bounding box de sécurité
+      if (lat < DOUALA_BBOX.south || lat > DOUALA_BBOX.north) continue;
+      if (lon < DOUALA_BBOX.west || lon > DOUALA_BBOX.east) continue;
+      
+      const frp = Math.random() * 100 + 10;
+      
+      sim.push({
+        lat,
+        lon,
+        frp,
+        intensity: Math.min(frp / 110, 1.0),
+        type: typeDistribution[i % typeDistribution.length],
+        confidence: Math.random() > 0.3 ? 'high' : 'nominal',
+        sensor: Math.random() > 0.5 ? 'MODIS' : 'VIIRS',
+        date: new Date(Date.now() - Math.random() * 3 * 24 * 60 * 60 * 1000)
+      });
+    }
+    return sim;
+  }
+
+  // ============================================
+  // INJECTION DE POINTS SIMULÉS (appelée par le bouton)
+  // ============================================
+  function injectSimulatedHotspots() {
+    const screen = document.getElementById('loading-screen');
+    const badge = document.getElementById('badge-status');
+    const infoText = document.getElementById('info-text');
+    
+    console.log('[SIMULATION] Injection de 50 points chauds simulés...');
+    
+    hotspots = generateSimulatedHotspots(50);
+    isSimulation = true;
+    
+    console.log(`[SIMULATION] ${hotspots.length} points générés dans la bbox de Douala`);
+    
+    // Masquer l'écran de chargement
+    screen.classList.add('hidden');
+    
+    // Mettre à jour le badge
+    badge.textContent = `${hotspots.length} points (simulés)`;
+    badge.className = 'badge simulation';
+    
+    // Mettre à jour l'info panel
+    const highCount = hotspots.filter(h => h.intensity > 0.5).length;
+    infoText.innerHTML = `
+      <strong style="color: #a855f7;">Mode simulation</strong> — 
+      ${hotspots.length} points chauds <strong>fictifs</strong> générés autour de Douala 
+      (dont ${highCount} à haute intensité).<br>
+      <small style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 6px;">
+        Ces points sont uniquement pour tester la visualisation 3D. 
+        Aucune donnée réelle n'est affichée. 
+        <a href="javascript:location.reload()" style="color: var(--accent);">Recharger les vraies données</a>
+      </small>
+    `;
+    
+    // Charger les couches sur la carte
+    loadLayers();
+    
+    // Toast de confirmation
+    showToast('50 points chauds simulés injectés', 'i-sparkles');
+  }
+
+  // ============================================
+  // CHARGEMENT DES POINTS CHAUDS DEPUIS L'API
+  // ============================================
+  async function loadHotspots() {
+    const screen = document.getElementById('loading-screen');
+    const badge = document.getElementById('badge-status');
+    const infoText = document.getElementById('info-text');
+    
+    screen.classList.remove('hidden');
+    screen.innerHTML = '<div class="spinner"></div><div class="msg">Chargement des points chauds de Douala…</div>';
+    badge.textContent = 'Chargement…';
+    badge.className = 'badge';
+    
+    try {
+      const response = await fetch(`${API}/api/realtime?zone=douala&days=3`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('[API] Réponse reçue:', data);
+      
+      // Convertir les points API au format interne
+      hotspots = (data.fires || []).map(f => {
+        const frp = f.frp || 5.0;
+        return {
+          lat: f.latitude,
+          lon: f.longitude,
+          frp: frp,
+          intensity: Math.min(frp / 110, 1.0),
+          type: f.detection_type,
+          confidence: f.confidence || 'nominal',
+          sensor: f.sensor || 'FIRMS',
+          date: f.acq_date ? new Date(f.acq_date) : new Date()
+        };
+      });
+      
+      console.log(`[API] ${hotspots.length} points chauds chargés pour Douala`);
+      
+      if (hotspots.length === 0) {
+        // Aucun point réel : proposer la simulation
+        screen.innerHTML = `
+          <svg class="icon" style="width:64px;height:64px;color:var(--text-muted)"><use href="#i-map-pin"/></svg>
+          <div class="msg">Aucun point chaud détecté sur Douala ces 3 derniers jours.</div>
+          <div class="msg" style="font-size:13px; max-width: 500px;">
+            Cela peut signifier une absence de feux réels, un délai de mise à jour de la NASA, 
+            ou un problème de connexion à l'API.
+          </div>
+          <div class="btn-group">
+            <button class="retry-btn" onclick="location.reload()">
+              <svg class="icon"><use href="#i-rotate"/></svg> Actualiser
+            </button>
+            <button class="retry-btn simulation" onclick="injectSimulatedHotspots()">
+              <svg class="icon"><use href="#i-sparkles"/></svg> Tester avec 50 points simulés
+            </button>
+          </div>
+        `;
+        badge.textContent = 'Aucune donnée';
+        badge.className = 'badge';
+        infoText.innerHTML = `
+          Aucun point chaud réel sur Douala.<br>
+          <small style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 6px;">
+            Cliquez sur <strong>"Tester avec 50 points simulés"</strong> pour voir comment fonctionne la visualisation 3D.
+          </small>
+        `;
+        return;
+      }
+      
+      // Succès avec des points réels
+      isSimulation = false;
+      screen.classList.add('hidden');
+      badge.textContent = `${hotspots.length} feux (live)`;
+      badge.className = 'badge live';
+      
+      const highCount = hotspots.filter(h => h.intensity > 0.5).length;
+      infoText.textContent = `${hotspots.length} points chauds détectés sur les 3 derniers jours (dont ${highCount} à haute intensité). Cliquez sur un point pour l'itinéraire.`;
+      
+      loadLayers();
+      
+    } catch (err) {
+      console.error('[API] Erreur:', err);
+      screen.innerHTML = `
+        <svg class="icon" style="width:64px;height:64px;color:var(--danger)"><use href="#i-alert"/></svg>
+        <div class="error">Impossible de charger les points chauds.<br><small style="color:var(--text-muted)">${err.message}</small></div>
+        <div class="msg" style="font-size:12px;">Vérifiez que le serveur API est bien lancé sur ${API}</div>
+        <div class="btn-group">
+          <button class="retry-btn" onclick="location.reload()">
+            <svg class="icon"><use href="#i-rotate"/></svg> Réessayer
+          </button>
+          <button class="retry-btn simulation" onclick="injectSimulatedHotspots()">
+            <svg class="icon"><use href="#i-sparkles"/></svg> Voir avec points simulés
+          </button>
+        </div>
+      `;
+      badge.textContent = 'Erreur API';
+      badge.className = 'badge error';
+    }
+  }
+
+  // ============================================
+  // INITIALISATION DE LA CARTE
+  // ============================================
+  map = new maplibregl.Map({
+    container: 'map',
+    style: STYLES[getTheme()],
+    center: DOUALA_CENTER,
+    zoom: 11.5,
+    pitch: 60,
+    bearing: -20,
+    antialias: true
+  });
+
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+
+  // ============================================
+  // POLYGONES 3D
+  // ============================================
+  function createCirclePolygon(lon, lat, radiusMeters, segments = 16) {
+    const coords = [];
+    const earthRadius = 6378137;
+    const angular = radiusMeters / earthRadius;
+    const latRad = lat * Math.PI / 180;
+    const lonRad = lon * Math.PI / 180;
+    for (let i = 0; i <= segments; i++) {
+      const bearing = (i / segments) * 2 * Math.PI;
+      const lat2 = Math.asin(Math.sin(latRad) * Math.cos(angular) + Math.cos(latRad) * Math.sin(angular) * Math.cos(bearing));
+      const lon2 = lonRad + Math.atan2(Math.sin(bearing) * Math.sin(angular) * Math.cos(latRad), Math.cos(angular) - Math.sin(latRad) * Math.sin(lat2));
+      coords.push([lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]);
+    }
+    return coords;
+  }
+
+  // ============================================
+  // CHARGEMENT DES COUCHES SUR LA CARTE
+  // ============================================
+  function loadLayers() {
+    if (hotspots.length === 0) return;
+    
+    // Retirer les anciennes couches si elles existent
+    ['pillars-3d', 'points-glow', 'points-core'].forEach(id => {
+      if (map.getLayer(id)) map.removeLayer(id);
+    });
+    ['pillars', 'points'].forEach(id => {
+      if (map.getSource(id)) map.removeSource(id);
+    });
+    
+    // Retirer les anciens listeners pour éviter les doublons
+    map.off('click', 'points-core');
+    map.off('mouseenter', 'points-core');
+    map.off('mouseleave', 'points-core');
+    
+    // --- 1. Piliers 3D ---
+    const pillarFeatures = hotspots.map((h, idx) => ({
+      type: 'Feature',
+      properties: { 
+        idx, 
+        intensity: h.intensity, 
+        height: 30 + h.intensity * 350, 
+        color: getFireType(h.type).color 
+      },
+      geometry: { 
+        type: 'Polygon', 
+        coordinates: [createCirclePolygon(h.lon, h.lat, 30 + h.intensity * 50)] 
+      }
+    }));
+    
+    map.addSource('pillars', { type: 'geojson', data: { type: 'FeatureCollection', features: pillarFeatures } });
+    map.addLayer({
+      id: 'pillars-3d', type: 'fill-extrusion', source: 'pillars',
+      paint: {
+        'fill-extrusion-color': ['get', 'color'],
+        'fill-extrusion-height': ['get', 'height'],
+        'fill-extrusion-base': 0, 
+        'fill-extrusion-opacity': 0.85
+      }
+    });
+
+    // --- 2. Points cliquables ---
+    map.addSource('points', {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: hotspots.map((h, idx) => ({
+          type: 'Feature',
+          properties: {
+            idx, 
+            frp: h.frp.toFixed(1), 
+            intensity: h.intensity, 
+            type: h.type,
+            typeName: getFireType(h.type).name, 
+            typeColor: getFireType(h.type).color,
+            confidence: h.confidence, 
+            sensor: h.sensor + (isSimulation ? ' (simulé)' : ''), 
+            date: h.date.toLocaleString('fr-FR'),
+            lat: h.lat.toFixed(5), 
+            lon: h.lon.toFixed(5)
+          },
+          geometry: { type: 'Point', coordinates: [h.lon, h.lat] }
+        }))
+      }
+    });
+
+    // Halo lumineux
+    map.addLayer({
+      id: 'points-glow', type: 'circle', source: 'points',
+      paint: {
+        'circle-radius': ['+', 15, ['*', ['get', 'intensity'], 25]],
+        'circle-color': ['get', 'typeColor'], 
+        'circle-opacity': 0.25, 
+        'circle-blur': 1,
+        'circle-pitch-alignment': 'map'
+      }
+    });
+
+    // Point solide
+    map.addLayer({
+      id: 'points-core', type: 'circle', source: 'points',
+      paint: {
+        'circle-radius': ['+', 5, ['*', ['get', 'intensity'], 7]],
+        'circle-color': ['get', 'typeColor'], 
+        'circle-stroke-width': 2, 
+        'circle-stroke-color': '#ffffff', 
+        'circle-stroke-opacity': 0.9,
+        'circle-pitch-alignment': 'map'
+      }
+    });
+
+    // Animation de pulsation
+    if (pulseIntervalId) clearInterval(pulseIntervalId);
+    let pulse = 0;
+    pulseIntervalId = setInterval(() => {
+      if (!map.getLayer('points-glow')) return;
+      pulse = (pulse + 1) % 100;
+      const phase = Math.sin(pulse / 100 * Math.PI * 2);
+      map.setPaintProperty('points-glow', 'circle-opacity', 0.15 + (phase + 1) * 0.1);
+    }, 80);
+
+    // Clic sur un point
+    map.on('click', 'points-core', (e) => {
+      const p = e.features[0].properties;
+      const c = e.features[0].geometry.coordinates;
+      openHotspotPopup(parseInt(p.idx), c, p);
+    });
+    map.on('mouseenter', 'points-core', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'points-core', () => map.getCanvas().style.cursor = '');
+  }
+
+  // Quand le style change (thème), recharger les couches
+  map.on('styledata', () => {
+    if (hotspots.length > 0 && !map.getSource('points')) {
+      setTimeout(loadLayers, 100);
+    }
+  });
+
+  // ============================================
+  // POPUP AVEC CHOIX DU MODE DE TRANSPORT
+  // ============================================
+  async function openHotspotPopup(idx, coords, props) {
+    const transportButtons = Object.entries(TRANSPORT_MODES).map(([mode, info]) => `
+      <button class="transport-option" data-mode="${mode}" data-idx="${idx}" disabled>
+        <svg class="icon"><use href="#i-${info.icon}"/></svg>
+        <span class="label">${info.label}</span>
+        <span class="time loading" id="time-${idx}-${mode}">...</span>
+      </button>
+    `).join('');
+
+    const html = `
+      <div class="popup-title">${isSimulation ? '🔥 Point chaud (simulé)' : '🔥 Point chaud détecté'}</div>
+      <div class="popup-row"><span>Type</span><span><span class="popup-badge" style="background:${props.typeColor}">${props.typeName}</span></span></div>
+      <div class="popup-row"><span>Intensité (FRP)</span><span>${props.frp} MW</span></div>
+      <div class="popup-row"><span>Capteur</span><span>${props.sensor}</span></div>
+      <div class="popup-row"><span>Date</span><span>${props.date}</span></div>
+      <div class="popup-divider">
+        <div class="popup-subtitle">Temps de trajet estimés</div>
+        ${transportButtons}
+      </div>
+    `;
+
+    const popup = new maplibregl.Popup({ maxWidth: '340px' })
+      .setLngLat(coords)
+      .setHTML(html)
+      .addTo(map);
+
+    let pos = userPosition;
+    if (!pos) {
+      try {
+        pos = await getPosition();
+        userPosition = pos;
+      } catch (err) {
+        popup.remove();
+        enableManualPositionMode(() => openHotspotPopup(idx, coords, props));
+        return;
+      }
+    }
+
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${pos.lon},${pos.lat};${coords[0]},${coords[1]}?overview=full&geometries=geojson&steps=true`;
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      if (data.code !== 'Ok' || !data.routes[0]) {
+        throw new Error('Aucun itinéraire');
+      }
+
+      const route = data.routes[0];
+      const distKm = route.distance / 1000;
+      
+      routeCache[idx] = { route, distance: distKm, pos };
+
+      for (const [mode, info] of Object.entries(TRANSPORT_MODES)) {
+        const timeEl = document.getElementById(`time-${idx}-${mode}`);
+        const btn = document.querySelector(`button[data-idx="${idx}"][data-mode="${mode}"]`);
+        if (!timeEl || !btn) continue;
+        
+        const durationMin = Math.max(1, Math.round((distKm / info.speed) * 60));
+        timeEl.textContent = `${durationMin} min`;
+        timeEl.classList.remove('loading');
+        btn.disabled = false;
+        btn.addEventListener('click', () => startNavigation(idx, mode, coords));
+      }
+    } catch (err) {
+      console.error('Erreur calcul itinéraire:', err);
+      for (const mode of Object.keys(TRANSPORT_MODES)) {
+        const timeEl = document.getElementById(`time-${idx}-${mode}`);
+        if (timeEl) {
+          timeEl.textContent = 'N/A';
+          timeEl.classList.remove('loading');
+          timeEl.style.color = 'var(--text-muted)';
+        }
+      }
+    }
+  }
+
+  // ============================================
+  // NAVIGATION VOCALE
+  // ============================================
+  async function startNavigation(idx, mode, destLonLat) {
+    const cached = routeCache[idx];
+    if (!cached) {
+      showToast('Itinéraire non disponible', 'i-alert');
+      return;
+    }
+    
+    const { route, distance, pos } = cached;
+    const modeInfo = TRANSPORT_MODES[mode];
+    const durationMin = Math.max(1, Math.round((distance / modeInfo.speed) * 60));
+
+    document.querySelectorAll('.maplibregl-popup').forEach(p => p.remove());
+
+    ['route-line', 'user-marker'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+    ['route', 'user-point'].forEach(id => { if (map.getSource(id)) map.removeSource(id); });
+    
+    if (sequenceTimeout) { clearTimeout(sequenceTimeout); sequenceTimeout = null; }
+    if (speechSynthesis) speechSynthesis.cancel();
+
+    map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: route.geometry } });
+    map.addLayer({
+      id: 'route-line', type: 'line', source: 'route',
+      paint: { 'line-color': '#fb923c', 'line-width': 8, 'line-opacity': 0.85, 'line-blur': 1 }
+    });
+
+    map.addSource('user-point', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: [pos.lon, pos.lat] } } });
+    map.addLayer({
+      id: 'user-marker', type: 'circle', source: 'user-point',
+      paint: { 'circle-radius': 8, 'circle-color': '#4ade80', 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff' }
+    });
+
+    const bounds = new maplibregl.LngLatBounds();
+    bounds.extend([pos.lon, pos.lat]);
+    bounds.extend(destLonLat);
+    map.fitBounds(bounds, { padding: 100, pitch: 60, duration: 1500 });
+
+    const modeWord = mode === 'driving' ? 'en voiture' : mode === 'cycling' ? 'à vélo' : 'à pied';
+    showInstruction(modeInfo.icon, `Départ ${modeWord}`, `${distance.toFixed(1)} km — ~${durationMin} min`);
+    document.body.classList.add('nav-active');
+
+    await new Promise(r => setTimeout(r, 500));
+    speak(`Itinéraire ${modeWord}. Distance ${distance.toFixed(1)} kilomètres, environ ${durationMin} minutes.`);
+
+    let stepIdx = 0;
+    const steps = route.legs[0].steps;
+    
+    const playNextStep = () => {
+      if (stepIdx >= steps.length) {
+        showInstruction('flag', 'Arrivée', '');
+        speak('Vous êtes arrivé à destination.', () => {
+          document.body.classList.remove('nav-active');
+        });
+        return;
+      }
+
+      const step = steps[stepIdx];
+      announceManeuver(step, () => {
+        stepIdx++;
+        sequenceTimeout = setTimeout(playNextStep, 3000);
+      });
+    };
+
+    sequenceTimeout = setTimeout(playNextStep, 6000); 
+  }
+
+  function announceManeuver(step, onEndCallback) {
+    const m = step.maneuver;
+    if (m.type === 'arrive') {
+      if (onEndCallback) onEndCallback();
+      return;
+    }
+    
+    let iconId = 'arrow-up';
+    let text = 'Continuez tout droit';
+    
+    if (m.type === 'turn') {
+      if (m.modifier === 'left' || m.modifier === 'sharp left') {
+        iconId = 'arrow-left';
+        text = m.modifier === 'sharp left' ? 'Tournez fortement à gauche' : 'Tournez à gauche';
+      } else if (m.modifier === 'right' || m.modifier === 'sharp right') {
+        iconId = 'arrow-right';
+        text = m.modifier === 'sharp right' ? 'Tournez fortement à droite' : 'Tournez à droite';
+      } else if (m.modifier === 'slight left') {
+        iconId = 'arrow-left';
+        text = 'Tournez légèrement à gauche';
+      } else if (m.modifier === 'slight right') {
+        iconId = 'arrow-right';
+        text = 'Tournez légèrement à droite';
+      }
+    } else if (m.type === 'roundabout' || m.type === 'rotary') {
+      iconId = 'rotate';
+      text = 'Prenez le rond-point';
+    } else if (m.type === 'merge') {
+      iconId = 'navigation';
+      text = 'Insérez-vous';
+    } else if (m.type === 'fork') {
+      iconId = 'navigation';
+      text = 'Prenez la bifurcation';
+    }
+    
+    const dist = step.distance > 1000 
+      ? `dans ${(step.distance / 1000).toFixed(1)} kilomètres` 
+      : `dans ${Math.round(step.distance)} mètres`;
+    
+    showInstruction(iconId, text, dist);
+    speak(`${text} ${dist}`, onEndCallback);
+  }
+
+  // ============================================
+  // UTILITAIRES
+  // ============================================
+  function speak(text, onEnd) {
+    if (!('speechSynthesis' in window)) {
+      console.warn("SpeechSynthesis non supporté par ce navigateur.");
+      return;
+    }
+    if (speechSynthesis.paused) speechSynthesis.resume();
+
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'fr-FR';
+    u.rate = 0.95;
+    u.volume = 1.0;
+
+    const voices = speechSynthesis.getVoices();
+    const frVoice = voices.find(v => v.lang.startsWith('fr'));
+    if (frVoice) u.voice = frVoice;
+
+    if (onEnd) u.onend = onEnd;
+    speechSynthesis.speak(u);
+  }
+
+  function showInstruction(iconId, text, distance) {
+    const el = document.getElementById('instructions');
+    el.classList.add('active');
+    el.querySelector('.icon use').setAttribute('href', `#i-${iconId}`);
+    el.querySelector('.text').textContent = text;
+    el.querySelector('.distance').textContent = distance || '';
+  }
+
+  function hideInstruction() { document.getElementById('instructions').classList.remove('active'); }
+
+  function getPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('Non supporté'));
+      if (!window.isSecureContext) return reject(new Error('HTTPS requis'));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        (err) => reject(err),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+      );
+    });
+  }
+
+  function enableManualPositionMode(callback) {
+    showToast('Cliquez sur la carte pour définir votre position', 'i-map-pin');
+    document.getElementById('fallback-banner').classList.add('active');
+    const handler = (e) => {
+      userPosition = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+      showToast('Position définie', 'i-check');
+      document.getElementById('fallback-banner').classList.remove('active');
+      map.off('click', handler);
+      if (callback) callback();
+    };
+    map.once('click', handler);
+  }
+
+  // ============================================
+  // BOUTONS
+  // ============================================
+  document.getElementById('test-voice-btn').addEventListener('click', () => {
+    speak("Test de la voix. Si vous entendez ce message, le son fonctionne correctement.");
+    showToast('Test audio lancé...', 'i-navigation');
+  });
+
+  document.getElementById('locate-btn').addEventListener('click', async () => {
+    if (hotspots.length === 0) {
+      showToast('Aucun point chaud disponible. Injectez des points simulés pour tester.', 'i-alert');
+      return;
+    }
+    try {
+      const pos = await getPosition();
+      userPosition = pos;
+      let nearest = null, minDist = Infinity;
+      for (let i = 0; i < hotspots.length; i++) {
+        const h = hotspots[i];
+        const d = Math.sqrt(Math.pow(h.lat - pos.lat, 2) + Math.pow(h.lon - pos.lon, 2));
+        if (d < minDist) { minDist = d; nearest = { idx: i, hotspot: h }; }
+      }
+      if (nearest) {
+        const h = nearest.hotspot;
+        const t = getFireType(h.type);
+        openHotspotPopup(nearest.idx, [h.lon, h.lat], {
+          frp: h.frp.toFixed(1), intensity: h.intensity,
+          typeName: t.name, typeColor: t.color,
+          sensor: h.sensor, date: h.date.toLocaleString('fr-FR')
+        });
+      }
+    } catch (e) {
+      enableManualPositionMode(() => document.getElementById('locate-btn').click());
+    }
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    if (sequenceTimeout) { clearTimeout(sequenceTimeout); sequenceTimeout = null; }
+    if (speechSynthesis) speechSynthesis.cancel();
+    hideInstruction();
+    document.body.classList.remove('nav-active');
+    document.querySelectorAll('.maplibregl-popup').forEach(p => p.remove());
+    ['route-line', 'user-marker'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+    ['route', 'user-point'].forEach(id => { if (map.getSource(id)) map.removeSource(id); });
+    map.flyTo({ center: DOUALA_CENTER, zoom: 11.5, pitch: 60, bearing: -20, duration: 1500 });
+  });
+
+  document.getElementById('theme-btn').addEventListener('click', () => {
+    applyTheme(getTheme() === 'dark' ? 'light' : 'dark');
+  });
+
+  function showToast(message, iconId = 'i-check') {
+    const toast = document.getElementById('toast');
+    toast.innerHTML = `<svg class="icon"><use href="#${iconId}"/></svg> ${message}`;
+    toast.classList.add('show');
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
+  }
+
+  // ============================================
+  // DÉMARRAGE
+  // ============================================
+  applyTheme(getTheme());
+  loadHotspots();
+</script>
+</body>
+</html>

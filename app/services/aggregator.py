@@ -1,23 +1,11 @@
-"""
-Construit la matrice calendrier (année × mois) avec séparation MODIS / VIIRS.
-
-Pourquoi séparer les deux capteurs ?
-- MODIS existe depuis 2000, VIIRS depuis 2012.
-- VIIRS détecte 3 à 5× plus de feux que MODIS (résolution 375 m vs 1 km).
-- Sans séparation, on observe un "pic artificiel" en 2012 qui n'est PAS
-  une augmentation réelle des incendies, mais l'ajout d'un capteur plus sensible.
-- En exposant matrix_modis et matrix_viirs séparément, le frontend peut
-  afficher les deux séries empilées ou côte à côte et expliquer la discontinuité.
-"""
 from datetime import datetime
 from collections import defaultdict
 import statistics
 
 
 def build_calendar(rows: list, zone_id: str, start_year: int) -> dict:
-    # --- 1. Compter par (année, mois) et par capteur ---
-    counts_modis: dict[tuple[int, int], int] = defaultdict(int)
-    counts_viirs: dict[tuple[int, int], int] = defaultdict(int)
+    counts_modis: dict[tuple[int, int], float] = defaultdict(float)
+    counts_viirs: dict[tuple[int, int], float] = defaultdict(float)
     valid_years: set[int] = set()
 
     for row in rows:
@@ -34,41 +22,38 @@ def build_calendar(rows: list, zone_id: str, start_year: int) -> dict:
         valid_years.add(dt.year)
         key = (dt.year, dt.month)
         instrument = _extract_instrument(row)
+        weight = getattr(row, "weight", 1.0)  # <-- Prise en compte du poids
 
         if "VIIRS" in instrument:
-            counts_viirs[key] += 1
+            counts_viirs[key] += weight
         else:
-            # MODIS ou inconnu → compté dans MODIS par défaut
-            counts_modis[key] += 1
+            counts_modis[key] += weight
 
     if not valid_years:
         return _empty(zone_id, start_year)
 
-    # --- 2. Construire les 3 matrices ---
     years = list(range(min(valid_years), max(valid_years) + 1))
     months = list(range(1, 13))
 
-    matrix_modis = [[counts_modis.get((y, m), 0) for m in months] for y in years]
-    matrix_viirs = [[counts_viirs.get((y, m), 0) for m in months] for y in years]
+    # Arrondir pour garder des entiers (Pydantic)
+    matrix_modis = [[int(round(counts_modis.get((y, m), 0.0))) for m in months] for y in years]
+    matrix_viirs = [[int(round(counts_viirs.get((y, m), 0.0))) for m in months] for y in years]
     matrix = [
         [matrix_modis[i][j] + matrix_viirs[i][j] for j in range(12)]
         for i in range(len(years))
     ]
 
-    # --- 3. Médiane par mois sur la matrice COMBINÉE ---
     median_by_month = []
     for m_idx in range(12):
         values = [matrix[y_idx][m_idx] for y_idx in range(len(years))]
         median_by_month.append(float(statistics.median(values)) if values else 0.0)
 
-    # --- 4. Première année où VIIRS apparaît ---
     first_viirs_year = None
     for i, y in enumerate(years):
         if any(matrix_viirs[i]):
             first_viirs_year = y
             break
 
-    # --- 5. Anomalie du mois le plus récent ---
     current_year = max(valid_years)
     current_month = _last_month(counts_modis, counts_viirs, current_year)
     current_count = matrix[years.index(current_year)][current_month - 1]
@@ -78,7 +63,6 @@ def build_calendar(rows: list, zone_id: str, start_year: int) -> dict:
         if median_current > 0 else 0.0
     )
 
-    # --- 6. Réponse ---
     return {
         "zone": zone_id,
         "display_name": zone_id,
@@ -101,11 +85,7 @@ def build_calendar(rows: list, zone_id: str, start_year: int) -> dict:
         "generated_at": datetime.utcnow().isoformat() + "Z",
     }
 
-
-# ============================================================
-# Helpers
-# ============================================================
-
+# --- Fonctions helpers (inchangées) ---
 def _extract_date(row) -> str:
     for attr in ("acq_date", "date"):
         v = getattr(row, attr, None) if hasattr(row, attr) else None

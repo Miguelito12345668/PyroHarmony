@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Méthodologie — PyroHarmony</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+  <style>
+    /* === HERO 3D PIPELINE (Design Pro) === */
+    .pipeline-hero {
+      position: relative;
+      margin-top: 100px;
+      height: 550px;
+      overflow: hidden;
+      border-radius: 24px;
+      background: #090b10; /* Fond très sombre */
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+    #pipeline-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    
+    /* Effet Glassmorphism pour le texte */
+    .pipeline-overlay {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      right: 24px;
+      padding: 20px 24px;
+      background: rgba(15, 20, 25, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pipeline-overlay-text h3 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+    .pipeline-overlay-text p {
+      margin: 0;
+      color: #94a3b3;
+      font-size: 13px;
+    }
+    
+    /* Légende des couleurs intégrée au glassmorphism */
+    .pipeline-legend {
+      display: flex;
+      gap: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #e6ebf0;
+      font-weight: 500;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .legend-dot.modis { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+    .legend-dot.viirs { background: #a855f7; box-shadow: 0 0 10px #a855f7; }
+    .legend-dot.core { background: #fb923c; box-shadow: 0 0 10px #fb923c; }
+    .legend-dot.result { background: #dc2626; box-shadow: 0 0 10px #dc2626; }
+
+    @media (max-width: 900px) {
+      .pipeline-hero { height: 400px; }
+      .pipeline-overlay { flex-direction: column; align-items: flex-start; gap: 16px; }
+      .pipeline-legend { flex-wrap: wrap; }
+    }
+
+    /* === CARTES DES ÉTAPES === */
+    .step {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(23, 29, 36, 0.8) 0%, rgba(15, 20, 25, 0.8) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .step::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .step:hover {
+      transform: translateY(-5px);
+      border-color: rgba(251, 146, 60, 0.3);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .step:hover::before { opacity: 1; }
+    
+    /* Numéro stylisé */
+    .step-number {
+      background: rgba(251, 146, 60, 0.1);
+      color: var(--accent);
+      border: 1px solid rgba(251, 146, 60, 0.2);
+      font-size: 20px;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+    PyroHarmony
+  </a>
+  <div class="nav-links">
+    <a href="index.html">Accueil</a>
+    <a href="methodologie.html" class="active">Méthodologie</a>
+    <a href="donnees.html">Données</a>
+    <a href="secteurs.html">Secteurs</a>
+    <a href="apropos.html">À propos</a>
+    <a href="/ui/" class="nav-cta">Dashboard →</a>
+  </div>
+</nav>
+
+<!-- HERO 3D PIPELINE -->
+<section class="section" style="padding-bottom: 20px;">
+  <div class="section-header" style="margin-bottom: 30px;">
+    <span class="section-label">Méthodologie Scientifique</span>
+    <h2>Le cadre « Correction-avant-Fusion »</h2>
+    <p class="lead">Nous n'additionnons pas simplement les données. Nous corrigeons les biais physiques avant de fusionner les capteurs, selon un pipeline algorithmique strict.</p>
+  </div>
+
+  <div class="pipeline-hero">
+    <canvas id="pipeline-canvas"></canvas>
+    
+    <div class="pipeline-overlay">
+      <div class="pipeline-overlay-text">
+        <h3>Flux de traitement en temps réel</h3>
+        <p>Deux satellites, deux flux de données, un seul résultat harmonisé.</p>
+      </div>
+      <div class="pipeline-legend">
+        <div class="legend-item"><span class="legend-dot modis"></span> MODIS</div>
+        <div class="legend-item"><span class="legend-dot viirs"></span> VIIRS</div>
+        <div class="legend-item"><span class="legend-dot core"></span> Traitement</div>
+        <div class="legend-item"><span class="legend-dot result"></span> Résultat</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ÉTAPES -->
+<section class="section" style="padding-top: 40px;">
+  <div class="steps">
+    <div class="step reveal">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <h3>Extraction des données Level-2</h3>
+        <p>Téléchargement des fichiers bruts <strong>MOD14</strong> (Terra), <strong>MYD14</strong> (Aqua) et <strong>VNP14IMG</strong> (VIIRS) depuis le LAADS DAAC de la NASA. Chaque fichier contient la géolocalisation pixel par pixel, la puissance radiative du feu (FRP) et l'angle de visée (VZA).</p>
+      </div>
+    </div>
+
+    <div class="step reveal">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <h3>Correction du biais d'angle (VZA)</h3>
+        <p>MODIS sous-estime la FRP lorsqu'il observe un feu de biais. Nous appliquons la formule : <code style="background: rgba(251,146,60,0.1); padding: 4px 8px; border-radius: 4px; color: var(--accent); font-family: monospace;">FRP_corrigée = FRP_brute × (1 + (VZA/60) × 0.3)</code>. Plus l'angle est grand, plus la correction est forte.</p>
+      </div>
+    </div>
+
+    <div class="step reveal">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <h3>Appariement spatial (1 km)</h3>
+        <p>Pour chaque détection MODIS, nous cherchons dans les données VIIRS s'il existe un feu à <strong>moins d'1 km</strong> (via un arbre KD pour la rapidité). Si oui, on considère que c'est le <strong>même incendie vu par deux capteurs</strong>. En 2024, nous avons identifié 71 731 paires.</p>
+      </div>
+    </div>
+
+    <div class="step reveal">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <h3>Fusion et déduplication</h3>
+        <p>On garde la version <strong>MODIS corrigée</strong> (avec FRP ajustée au VZA), puis on ajoute les feux MODIS seuls et VIIRS seuls. Les VIIRS appariés sont supprimés pour ne pas compter deux fois le même événement. Résultat : une série temporelle cohérente et sans doublons.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="margin-top: 60px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Étape</th>
+          <th>Entrée</th>
+          <th>Sortie</th>
+          <th>Méthode</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1. Extraction</strong></td>
+          <td>Fichiers HDF / NetCDF</td>
+          <td>DataFrames pandas</td>
+          <td><code>pyhdf</code>, <code>netCDF4</code></td>
+        </tr>
+        <tr>
+          <td><strong>2. Correction VZA</strong></td>
+          <td>FRP brute + VZA</td>
+          <td>FRP corrigée</td>
+          <td>Formule empirique</td>
+        </tr>
+        <tr>
+          <td><strong>3. Appariement</strong></td>
+          <td>Lat/Lon MODIS + VIIRS</td>
+          <td>Paires d'événements</td>
+          <td><code>cKDTree</code> (1 km)</td>
+        </tr>
+        <tr>
+          <td><strong>4. Fusion</strong></td>
+          <td>Paires + uniques</td>
+          <td>Série dédupliquée</td>
+          <td>Déduplication spatiale</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card reveal" style="margin-top: 60px; background: linear-gradient(135deg, rgba(251, 146, 60, 0.08), rgba(220, 38, 38, 0.08));">
+    <h3 style="color: var(--accent); margin-bottom: 16px;"> Résultat scientifique</h3>
+    <p style="font-size: 15px;">Le ratio entre nos données harmonisées et les archives officielles de la NASA est de <strong>≈ 1.02</strong>, prouvant la cohérence de notre méthodologie. Notre courbe est continue sur 26 ans, sans biais technologique artificiel.</p>
+  </div>
+
+  <div class="text-center" style="margin-top: 60px;">
+    <a href="/ui/" class="btn btn-primary" style="font-size: 17px; padding: 18px 36px;">
+      Voir les résultats sur le Dashboard
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+    PyroHarmony
+  </div>
+  <p>Données fournies par la NASA FIRMS (LANCE, ESDIS)</p>
+  <p>Développé dans le cadre du NASA Space Apps Challenge</p>
+</footer>
+
+<script src="assets/animations.js"></script>
+
+<!-- SCRIPT 3D HAUTE PERFORMANCE -->
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.getElementById('pipeline-canvas');
+if (canvas) {
+  const scene = new THREE.Scene();
+  const container = canvas.parentElement;
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+  
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+  camera.position.set(0, 0, 9);
+  
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+  
+  // === 1. GRILLE DE FOND (Effet Radar) ===
+  const gridHelper = new THREE.GridHelper(20, 40, 0x2a3541, 0x1d252e);
+  gridHelper.position.y = -3;
+  gridHelper.rotation.x = Math.PI / 2;
+  gridHelper.position.z = -2;
+  scene.add(gridHelper);
+
+  // === 2. SATELLITES (Design géométrique) ===
+  function createSatellite(color, x, y) {
+    const group = new THREE.Group();
+    // Corps principal (Icosaèdre)
+    const core = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.3, 0),
+      new THREE.MeshBasicMaterial({ color: color, wireframe: true })
+    );
+    // Noyau interne lumineux
+    const inner = new THREE.Mesh(
+      new THREE.SphereGeometry(0.15, 16, 16),
+      new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.8 })
+    );
+    group.add(core);
+    group.add(inner);
+    
+    // Panneaux solaires
+    const panelGeo = new THREE.BoxGeometry(0.6, 0.02, 0.2);
+    const panelMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.3 });
+    const panel1 = new THREE.Mesh(panelGeo, panelMat);
+    panel1.position.x = 0.5;
+    const panel2 = new THREE.Mesh(panelGeo, panelMat);
+    panel2.position.x = -0.5;
+    group.add(panel1, panel2);
+    
+    group.position.set(x, y, 0);
+    group.userData.core = core;
+    return group;
+  }
+  
+  const modisSat = createSatellite(0x3b82f6, -3.5, 2);
+  const viirsSat = createSatellite(0xa855f7, 3.5, 2);
+  scene.add(modisSat);
+  scene.add(viirsSat);
+  
+  // === 3. PROCESSEUR CENTRAL (Sphère complexe) ===
+  const procGroup = new THREE.Group();
+  // Enveloppe extérieure
+  const procOuter = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ color: 0xfb923c, wireframe: true, transparent: true, opacity: 0.3 })
+  );
+  // Anneau orbital
+  const procRing = new THREE.Mesh(
+    new THREE.TorusGeometry(1.2, 0.01, 8, 64),
+    new THREE.MeshBasicMaterial({ color: 0xfb923c, transparent: true, opacity: 0.6 })
+  );
+  procRing.rotation.x = Math.PI / 2;
+  procGroup.add(procOuter);
+  procGroup.add(procRing);
+  scene.add(procGroup);
+  
+  // === 4. RÉSULTAT FINAL ===
+  const resultCore = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0xdc2626 })
+  );
+  resultCore.position.set(0, -2.5, 0);
+  scene.add(resultCore);
+
+  // === 5. PARTICULES VECTORIELLES (Haute performance) ===
+  const PARTICLE_COUNT = 3000;
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  
+  const particleData = [];
+  
+  // Initialisation
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    // Déterminer le type de particule : 40% MODIS, 40% VIIRS, 20% Résultat
+    let type, startX, startY, color;
+    const rand = Math.random();
+    if (rand < 0.4) {
+      type = 'modis'; startX = -3.5; startY = 2; color = new THREE.Color(0x3b82f6);
+    } else if (rand < 0.8) {
+      type = 'viirs'; startX = 3.5; startY = 2; color = new THREE.Color(0xa855f7);
+    } else {
+      type = 'result'; startX = 0; startY = 0; color = new THREE.Color(0xfb923c);
+    }
+    
+    particleData.push({
+      type: type,
+      startX: startX + (Math.random() - 0.5) * 0.5,
+      startY: startY + (Math.random() - 0.5) * 0.5,
+      baseColor: color,
+      progress: Math.random(),
+      speed: 0.002 + Math.random() * 0.003,
+      offset: Math.random() * Math.PI * 2
+    });
+    
+    // Position initiale
+    positions[i*3] = startX;
+    positions[i*3+1] = startY;
+    positions[i*3+2] = 0;
+    
+    // Couleur initiale
+    colors[i*3] = color.r;
+    colors[i*3+1] = color.g;
+    colors[i*3+2] = color.b;
+  }
+  
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  
+  // Matériel avec mélange additif pour l'effet lumineux
+  const pMaterial = new THREE.PointsMaterial({
+    size: 0.06,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.8,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  
+  const particleSystem = new THREE.Points(geometry, pMaterial);
+  scene.add(particleSystem);
+
+  // === 6. BOUCLE D'ANIMATION ===
+  let time = 0;
+  const orange = new THREE.Color(0xfb923c);
+  const red = new THREE.Color(0xdc2626);
+
+  function animate() {
+    requestAnimationFrame(animate);
+    time += 0.016;
+    
+    // Rotation des satellites
+    modisSat.userData.core.rotation.y += 0.01;
+    modisSat.userData.core.rotation.x += 0.005;
+    viirsSat.userData.core.rotation.y -= 0.01;
+    viirsSat.userData.core.rotation.x -= 0.005;
+    
+    // Rotation du processeur
+    procGroup.rotation.y = time * 0.2;
+    procGroup.rotation.x = Math.sin(time * 0.5) * 0.2;
+    
+    // Animation des particules
+    const positionsArray = particleSystem.geometry.attributes.position.array;
+    const colorsArray = particleSystem.geometry.attributes.color.array;
+    
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const data = particleData[i];
+      data.progress += data.speed;
+      
+      if (data.progress >= 1) {
+        data.progress = 0;
+      }
+      
+      const t = data.progress;
+      let x, y, z;
+      let currentColor = data.baseColor.clone();
+      
+      if (data.type === 'modis' || data.type === 'viirs') {
+        // Phase 1: Satellite -> Processeur (Courbe de Bézier)
+        const endX = 0, endY = 0;
+        // Courbe de Bézier quadratique pour un effet d'aspiration fluide
+        const ctrlX = data.startX * 0.5;
+        const ctrlY = data.startY - 1;
+        
+        x = Math.pow(1-t, 2) * data.startX + 2 * (1-t) * t * ctrlX + Math.pow(t, 2) * endX;
+        y = Math.pow(1-t, 2) * data.startY + 2 * (1-t) * t * ctrlY + Math.pow(t, 2) * endY;
+        z = Math.sin(t * Math.PI) * 0.5 + Math.sin(time * 2 + data.offset) * 0.1;
+        
+        // Transition de couleur vers l'orange (chaleur du processeur)
+        if (t > 0.5) {
+          currentColor.lerp(orange, (t - 0.5) * 2);
+        }
+        
+      } else {
+        // Phase 2: Processeur -> Résultat
+        x = Math.sin(t * Math.PI * 4 + data.offset) * 0.2 * (1 - t); // Tourbillon
+        y = -2.5 * t;
+        z = Math.cos(t * Math.PI * 2) * 0.2;
+        
+        // Transition de couleur orange -> rouge
+        currentColor.lerp(red, t);
+      }
+      
+      positionsArray[i*3] = x;
+      positionsArray[i*3+1] = y;
+      positionsArray[i*3+2] = z;
+      
+      colorsArray[i*3] = currentColor.r;
+      colorsArray[i*3+1] = currentColor.g;
+      colorsArray[i*3+2] = currentColor.b;
+    }
+    
+    particleSystem.geometry.attributes.position.needsUpdate = true;
+    particleSystem.geometry.attributes.color.needsUpdate = true;
+    
+    // Légère oscillation de la caméra
+    camera.position.x = Math.sin(time * 0.3) * 0.5;
+    camera.position.y = Math.cos(time * 0.2) * 0.2;
+    camera.lookAt(0, -0.5, 0);
+    
+    renderer.render(scene, camera);
+  }
+  animate();
+  
+  // === 7. RESPONSIVE ===
+  window.addEventListener('resize', () => {
+    const newW = container.clientWidth;
+    const newH = container.clientHeight;
+    camera.aspect = newW / newH;
+    camera.updateProjectionMatrix();
+    renderer.setSize(newW, newH);
+  });
+}
+</script>
+
+</body>
+</html>

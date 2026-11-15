@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.models.schemas import CalendarResponse
 from app.services.zones import get_zone
-from app.services.data_loader import get_cached_archive
+from app.services.data_loader_cameroun import get_cached_archive
 from app.services.aggregator import build_calendar
 from app.core.settings import settings
 from app.core import cache
@@ -21,9 +21,17 @@ async def get_calendar(zone: str = Query(...)):
     if cached:
         return CalendarResponse(**cached)
 
-    years = list(range(settings.start_year, 2026))
-    rows = await get_cached_archive(zone, zone_cfg, years)
+    # Années jusqu'en 2027 pour inclure le Parquet harmonisé
+    years = list(range(settings.start_year, 2027))
+    
+    # ⚠️ RETOUR TUPLE : rows (liste de feux) et scaling_ratio (float)
+    rows, scaling_ratio = await get_cached_archive(zone, zone_cfg, years)
+    
     result = build_calendar(rows, zone, settings.start_year)
     result["display_name"] = zone_cfg["display_name"]
+    
+    # ⚠️ Ajout du facteur d'échelle dans la réponse pour la traçabilité
+    result["scaling_ratio"] = round(scaling_ratio, 4)
+    
     cache.set(cache_key, result)
     return CalendarResponse(**result)

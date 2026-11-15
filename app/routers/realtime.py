@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from app.models.schemas import RealtimeResponse, FirePoint
 from app.services.zones import get_zone
-from app.services.data_loader import fetch_recent
+from app.services.data_loader_cameroun import fetch_recent
 from app.services.harmonizer import to_dict
 
 router = APIRouter(prefix="/api", tags=["realtime"])
